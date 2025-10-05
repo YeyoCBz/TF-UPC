@@ -118,23 +118,7 @@ def generate_random_graph(n):
 
     return graph_dict
 
-
-def extract_positions_from_html(html_content):
-    """Extrae las posiciones de los nodos del HTML generado por pyvis"""
-    positions = {}
-
-    # Buscar todos los nodos en el HTML
-    node_pattern = r'{"id":"([A-Z])","label":"[A-Z]","x":([-0-9.]+),"y":([-0-9.]+)'
-    matches = re.findall(node_pattern, html_content)
-
-    for match in matches:
-        node_id, x, y = match
-        positions[node_id] = {"x": float(x), "y": float(y)}
-
-    return positions
-
-
-def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_node=None, previous_positions=None):
+def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_node=None):
     # Crear red pyvis
     net = Network(height="1000px", width="100%", bgcolor="#0E1117", font_color="black")
 
@@ -198,30 +182,27 @@ def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_
 
     net.set_options(options)
 
-    # Si tenemos posiciones previas, usarlas; de lo contrario, generar layout inicial
-    if previous_positions:
-        # Usar las posiciones guardadas
-        pos = previous_positions
-    else:
-        # Generar nuevas posiciones usando NetworkX
-        G_nx = nx.DiGraph()
+    # Generar nuevas posiciones usando NetworkX
+    print("------NUEVOOOOO------------")
+    G_nx = nx.DiGraph()
 
-        # Agregar todos los nodos primero (incluso si no tienen aristas)
-        for node in graph_dict.keys():
-            G_nx.add_node(node)
+    # Agregar todos los nodos primero (incluso si no tienen aristas)
+    for node in graph_dict.keys():
+        G_nx.add_node(node)
 
-        # Agregar aristas
-        for u, neighbors in graph_dict.items():
-            for v, weight in neighbors.items():
-                G_nx.add_edge(u, v, weight=weight)
+    # Agregar aristas
+    for u, neighbors in graph_dict.items():
+        for v, weight in neighbors.items():
+            G_nx.add_edge(u, v, weight=weight)
 
-        # Usar spring layout para posiciones iniciales
-        pos_nx = nx.spring_layout(G_nx, seed=42, k=3, iterations=100)
+    # Usar spring layout para posiciones iniciales
+    pos_nx = nx.spring_layout(G_nx, seed=42, k=3, iterations=100)
 
-        # Convertir a formato pyvis (escalar)
-        pos = {}
-        for node, (x, y) in pos_nx.items():
-            pos[node] = {"x": x * 1000, "y": y * 1000}
+    # Convertir a formato pyvis (escalar)
+    pos = {}
+    for node, (x, y) in pos_nx.items():
+        pos[node] = {"x": x * 1000, "y": y * 1000}
+
 
     # Agregar nodos con posiciones
     for node in graph_dict.keys():
@@ -285,6 +266,28 @@ def load_file_json(uploaded_files):
     return None
 
 
+def show_min_path(min_distance, start_node, end_node, all_paths):
+    # Mostrar resultados
+    st.markdown("---")
+
+    # Distancia mínima
+    if min_distance == math.inf:
+        st.error(f"No existe camino entre {start_node} y {end_node}")
+    else:
+        st.success(f"**Distancia mínima:** {min_distance}")
+        st.subheader("Ruta")
+        for i, path in enumerate(all_paths, 1):
+            path_str = " → ".join(path)
+            st.write(f"**Camino {i}:** {path_str} (Longitud: {min_distance})")
+
+def steps_details_dijkstra():
+    # Mostrar pasos detallados
+    st.markdown("---")
+    st.subheader("Pasos Detallados del Algoritmo")
+    # print("Pasos Detallados del Algoritmo en proceso")
+    # Se desarolllará en futuras actualizaciones
+
+
 def main():
     st.title("Algoritmo de Dijkstra")
     st.markdown("---")
@@ -311,10 +314,6 @@ def main():
         st.session_state.generate_graph = False
     if 'graph_generated' not in st.session_state:
         st.session_state.graph_generated = False
-    if 'node_positions' not in st.session_state:
-        st.session_state.node_positions = None
-    if 'previous_html' not in st.session_state:
-        st.session_state.previous_html = None
 
     # Mostrar interfaz para grafo manual
     if generation_type == "Manual":
@@ -356,10 +355,6 @@ def main():
         if generation_type == "Aleatorio":
             st.session_state.graph_dict = generate_random_graph(n)
 
-        # Resetear posiciones cuando se genera un nuevo grafo
-        st.session_state.node_positions = None
-        st.session_state.previous_html = None
-
         st.session_state.graph_generated = True
 
     if btn2.button("Ejecutar Dijkstra", disabled=(not st.session_state.graph_generated), width="stretch",
@@ -368,13 +363,6 @@ def main():
 
     # Solo mostrar la interfaz si el grafo fue generado
     if st.session_state.graph_generated and st.session_state.graph_dict:
-
-        # Extraer posiciones actuales si existe HTML previo
-        current_positions = None
-        if st.session_state.previous_html:
-            current_positions = extract_positions_from_html(st.session_state.previous_html)
-            st.session_state.node_positions = current_positions
-
         # Selección de nodos para Dijkstra
         all_paths = None
         min_distance = None
@@ -409,15 +397,12 @@ def main():
             if min_distance != math.inf:
                 all_paths = find_all_paths(previous, start_node, end_node)
 
-        # Usar posiciones guardadas o actuales
-        positions_to_use = st.session_state.node_positions or current_positions
 
         net_initial = create_pyvis_network(
             st.session_state.graph_dict,
             highlight_paths=all_paths if is_dijkstra_executed else None,
             start_node=start_node,
-            end_node=end_node,
-            previous_positions=positions_to_use
+            end_node=end_node
         )
 
         # Guardar y mostrar el grafo
@@ -426,32 +411,12 @@ def main():
             with open(tmp_file.name, 'r', encoding='utf-8') as f:
                 html_content = f.read()
 
-        # Guardar el HTML actual para extraer posiciones en el próximo render
-        st.session_state.previous_html = html_content
-
         st.components.v1.html(html_content, height=1000)
 
         if is_dijkstra_executed:
             with st.spinner("Ejecutando algoritmo de Dijkstra..."):
-                # Mostrar resultados
-                st.markdown("---")
-
-                # Distancia mínima
-                if min_distance == math.inf:
-                    st.error(f"No existe camino entre {start_node} y {end_node}")
-                else:
-                    st.success(f"**Distancia mínima:** {min_distance}")
-                    st.subheader("Ruta")
-                    for i, path in enumerate(all_paths, 1):
-                        path_str = " → ".join(path)
-                        st.write(f"**Camino {i}:** {path_str} (Longitud: {min_distance})")
-
-                # Mostrar pasos detallados
-                st.markdown("---")
-                st.subheader("Pasos Detallados del Algoritmo")
-
-                # print("Pasos Detallados del Algoritmo en proceso")
-                # Se desarolllará en futuras actualizaciones
+                show_min_path(min_distance, start_node, end_node, all_paths)
+                steps_details_dijkstra()
 
 
 if __name__ == "__main__":
