@@ -6,7 +6,6 @@ from pyvis.network import Network
 import tempfile
 import json
 
-# Configuración de la página
 st.set_page_config(page_title="Algoritmo de Dijkstra", layout="wide")
 
 class AlgorithmDijkstra:
@@ -30,8 +29,6 @@ class AlgorithmDijkstra:
         predecessors = {node: [] for node in self.graph}
         distances[start_node] = 0
         labeled_nodes = set()
-        current_node = None
-        min_distance = None
         while len(labeled_nodes) < len(self.graph):
             current_node = None
             min_distance = float('inf')
@@ -52,11 +49,10 @@ class AlgorithmDijkstra:
                         predecessors[neighbor].append(current_node)
         if distances[end_node] == float('inf'):
             return None
-        all_shortest_paths = self.reconstruct_paths(current_node, start_node, predecessors)
-        return all_shortest_paths, min_distance
+        all_shortest_paths = self.reconstruct_paths(end_node, start_node, predecessors)
+        return all_shortest_paths, distances[end_node]
 
 def initial_environment_variables():
-    # Inicializar variables de sesión para mantener estado
     if 'graph_dict' not in st.session_state:
         st.session_state.graph_dict = None
     if 'is_graph_generated' not in st.session_state:
@@ -125,11 +121,6 @@ def pyvis_configuration():
           "label": {
             "enabled": false
           }
-        },
-        "color": {
-          "color": "#2B7CE9",
-          "highlight": "#FFA500",
-          "hover": "#FFA500"
         }
       },
       "layout": {
@@ -148,7 +139,7 @@ def show_highlight_paths(highlight_paths, graph_dict, net):
                          value=weight,
                          title=f"Valor: {weight}",
                          label=str(weight),
-                         color="#2B7CE9",
+                         color="#2CF",
                          width=2)
 
     if highlight_paths:
@@ -169,46 +160,36 @@ def show_highlight_paths(highlight_paths, graph_dict, net):
     return net
 
 def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_node=None):
-    # Crear red pyvis
     net = Network(height="1000px", width="100%", bgcolor="#0E1117", font_color="black")
 
-    # Configuración para hacerlo interactivo pero SIN física (nodos se quedan donde los pones)
     net.set_options(pyvis_configuration())
 
-    # Generar nuevas posiciones usando NetworkX
     G_nx = nx.DiGraph()
 
-    # Agregar todos los nodos primero (incluso si no tienen aristas)
     for node in graph_dict.keys():
         G_nx.add_node(node)
 
-    # Agregar aristas
     for u, neighbors in graph_dict.items():
         for v, weight in neighbors.items():
             G_nx.add_edge(u, v, weight=weight)
 
-    # Usar spring layout para posiciones iniciales
     pos_nx = nx.spring_layout(G_nx, seed=42, k=3, iterations=100)
 
-    # Convertir a formato pyvis (escalar)
     pos = {}
     for node, (x, y) in pos_nx.items():
         pos[node] = {"x": x * 1000, "y": y * 1000}
 
-    # Agregar nodos con posiciones
     for node in graph_dict.keys():
-        color = "#97c2fc"  # Color por defecto (azul claro)
+        color = "#9CF"
         size = 25
 
-        # Resaltar nodo origen y destino
         if node == start_node:
-            color = "#4CAF50"  # Verde
+            color = "#0F0"
             size = 50
         elif node == end_node:
-            color = "#FF6B6B"  # Rojo
+            color = "#F00"
             size = 50
 
-        # Usar posición guardada o generada
         node_pos = pos.get(node, {"x": 0, "y": 0})
 
         net.add_node(node,
@@ -218,9 +199,6 @@ def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_
                      shape="ellipse",
                      x=node_pos["x"],
                      y=node_pos["y"])
-
-    # Agregar aristas normales primero
-
 
     # Resaltar caminos mínimos si existen
     net = show_highlight_paths(highlight_paths, graph_dict, net)
@@ -315,7 +293,7 @@ def set_start_end_nodes(creation_type, nodes_count):
 
 def btn_generate_graph_execute_algorithm(creation_type, nodes_count):
     is_dijkstra_executed = False
-    btn1, btn2, _ = st.columns([1, 1, 2])
+    btn1, btn2, btn3 = st.columns([1, 1, 1])
 
     if btn1.button("Crear Grafo", width="stretch", type="primary", icon=":material/network_node:"):
         st.session_state.is_graph_generated = True
@@ -328,6 +306,17 @@ def btn_generate_graph_execute_algorithm(creation_type, nodes_count):
                    disabled=(not st.session_state.is_graph_generated)):
         is_dijkstra_executed = True
 
+    if st.session_state.is_graph_generated and st.session_state.graph_dict:
+        graph_json = json.dumps(st.session_state.graph_dict, indent=2)
+        btn3.download_button(
+            label="Descargar Grafo",
+            data=graph_json,
+            file_name="grafo.json",
+            mime="application/json",
+            icon=":material/download:",
+            disabled=(not st.session_state.is_graph_generated)
+        )
+
     return is_dijkstra_executed
 
 def build_sidebar():
@@ -339,9 +328,8 @@ def build_sidebar():
             "Tipo de creación:",
             ["Aleatorio", "Manual"]
         )
-        # Información sobre cómo usar
-        st.subheader("Leyenda", divider=True)
 
+        st.subheader("Leyenda", divider=True)
         st.badge("Nodo origen", color="green", icon=":material/radio_button_checked:")
         st.badge("Nodo destino", color="red", icon=":material/radio_button_checked:")
         
