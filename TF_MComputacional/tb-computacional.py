@@ -136,7 +136,7 @@ def extract_positions_from_html(html_content):
 
 def create_pyvis_network(graph_dict, highlight_paths=None, start_node=None, end_node=None, previous_positions=None):
     # Crear red pyvis
-    net = Network(height="1000px", width="100%", bgcolor="#ffffff", font_color="black")
+    net = Network(height="1000px", width="100%", bgcolor="#0E1117", font_color="black")
 
     # Configuración para hacerlo interactivo pero SIN física (nodos se quedan donde los pones)
     options = """
@@ -292,7 +292,7 @@ def main():
     # Sidebar para configuración
     with st.sidebar:
         st.header("Configuración del Grafo")
-        n = st.slider("Número de nodos (n)", min_value=8, max_value=16, value=10)
+        n = st.slider("Número de nodos", min_value=8, max_value=16, value=8)
 
         generation_type = st.radio(
             "Tipo de generación del grafo:",
@@ -349,7 +349,7 @@ def main():
 
     is_dijkstra_executed = False
 
-    btn1, btn2, _, _, _, _, _, _ = st.columns(8)
+    btn1, btn2, _ = st.columns([1,1,2])
 
     # Botón para generar/crear grafo
     if btn1.button("Generar/Crear Grafo", width="stretch", type="primary", icon=":material/network_node:"):
