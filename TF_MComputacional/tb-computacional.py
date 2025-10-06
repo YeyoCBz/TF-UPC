@@ -287,7 +287,11 @@ def set_start_end_nodes(creation_type, nodes_count):
             uploaded_files = st.file_uploader("Subir archivo", type="json")
 
             if uploaded_files:
-                st.session_state.graph_dict = load_file_json(uploaded_files)
+                json_graph = load_file_json(uploaded_files)
+                if nodes_count == len(json_graph):
+                    st.session_state.graph_dict = json_graph
+                else :
+                    st.warning(f"El json debe tener {nodes_count} nodos")
 
     return start_node, end_node
 
