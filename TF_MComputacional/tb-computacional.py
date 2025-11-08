@@ -28,7 +28,8 @@ class AlgorithmDijkstra:
     def find_short_path(self, start_node, end_node):
         distances = {node: float('inf') for node in self.graph}
         predecessors = {node: [] for node in self.graph}
-        hop_depth = {node: float('inf') for node in self.graph}  # Profundidad en saltos
+        hop_depth = {node: float('inf') for node in self.graph}
+        pred_hop_map = {node: {} for node in self.graph}
         distances[start_node] = 0
         hop_depth[start_node] = 0
         labeled_nodes = set()
@@ -43,6 +44,31 @@ class AlgorithmDijkstra:
             if current_node is None:
                 return None
             labeled_nodes.add(current_node)
+            
+            if current_node == end_node:
+                selected_distance = distances[current_node]
+                selected_hop = hop_depth[current_node]
+                selected_from = predecessors[current_node][0] if predecessors[current_node] else "-"
+                
+                selected_pred_hops = []
+                if predecessors[current_node]:
+                    for pred in predecessors[current_node]:
+                        hop = pred_hop_map[current_node].get(pred, selected_hop)
+                        selected_pred_hops.append({"desde": pred, "salto": hop})
+                else:
+                    selected_pred_hops.append({"desde": "-", "salto": 0})
+                
+                self.steps.append({
+                    "iteracion": iteration,
+                    "seleccionado": current_node,
+                    "seleccionado_distancia": selected_distance,
+                    "seleccionado_desde": selected_from,
+                    "seleccionado_salto": selected_hop,
+                    "seleccionado_pred_hops": selected_pred_hops,
+                    "actualizaciones": []
+                })
+                break
+            
             step_updates = []
             for neighbor, weight in self.graph[current_node].items():
                 if neighbor not in labeled_nodes:
@@ -52,6 +78,7 @@ class AlgorithmDijkstra:
                         distances[neighbor] = new_distance
                         hop_depth[neighbor] = new_hop
                         predecessors[neighbor] = [current_node]
+                        pred_hop_map[neighbor] = {current_node: new_hop}
                         step_updates.append({
                             "nodo": neighbor,
                             "desde": current_node,
@@ -60,6 +87,7 @@ class AlgorithmDijkstra:
                         })
                     elif new_distance == distances[neighbor]:
                         predecessors[neighbor].append(current_node)
+                        pred_hop_map[neighbor][current_node] = new_hop
                         step_updates.append({
                             "nodo": neighbor,
                             "desde": current_node,
@@ -67,12 +95,30 @@ class AlgorithmDijkstra:
                             "iteracion_salto": new_hop,
                             "empate": True
                         })
+
+            selected_distance = distances[current_node]
+            selected_hop = hop_depth[current_node]
+            selected_from = predecessors[current_node][0] if predecessors[current_node] else "-"
+            
+            selected_pred_hops = []
+            if predecessors[current_node]:
+                for pred in predecessors[current_node]:
+                    hop = pred_hop_map[current_node].get(pred, selected_hop)
+                    selected_pred_hops.append({"desde": pred, "salto": hop})
+            else:
+                selected_pred_hops.append({"desde": "-", "salto": 0})
+
             self.steps.append({
                 "iteracion": iteration,
                 "seleccionado": current_node,
+                "seleccionado_distancia": selected_distance,
+                "seleccionado_desde": selected_from,
+                "seleccionado_salto": selected_hop,
+                "seleccionado_pred_hops": selected_pred_hops,
                 "actualizaciones": step_updates
             })
             iteration += 1
+                
         if distances[end_node] == float('inf'):
             return None
         all_shortest_paths = self.reconstruct_paths(end_node, start_node, predecessors)
@@ -264,12 +310,24 @@ def show_min_path(min_distance, all_short_paths, start_node, end_node):
             path_str = " :arrow_right: ".join(path)
             st.write(f"**Camino {i}:** {path_str} (Longitud: {min_distance})")
 
-def steps_details_dijkstra():
+def steps_details_dijkstra(end_node=None):
     if not st.session_state.get('dijkstra_steps'):
         return
     st.subheader("Resumen de pasos (Dijkstra)")
     for step in st.session_state['dijkstra_steps']:
-        st.write(f"Paso {step['iteracion']}: Nodo seleccionado {step['seleccionado']}")
+        nodo = step['seleccionado']
+        distancia = step['seleccionado_distancia']
+        
+        if nodo == end_node and len(step.get('seleccionado_pred_hops', [])) > 1:
+            etiquetas = []
+            for ph in step['seleccionado_pred_hops']:
+                etiquetas.append(f"{nodo} [{distancia}, {ph['desde']}]`({ph['salto']})`")
+            etiquetas_str = ", ".join(etiquetas)
+            st.write(f"Paso {step['iteracion']}: Nodo seleccionado {etiquetas_str}")
+        else:
+            nodo_etiqueta = f"[{step['seleccionado_distancia']}, {step['seleccionado_desde']}]`({step['seleccionado_salto']})`"
+            st.write(f"Paso {step['iteracion']}: Nodo seleccionado {step['seleccionado']} {nodo_etiqueta}")
+        
         if step['actualizaciones']:
             for upd in step['actualizaciones']:
                 etiqueta = f"[{upd['distancia']}, {upd['desde']}]`({upd['iteracion_salto']})`"
@@ -346,7 +404,7 @@ def set_start_end_nodes(creation_type, nodes_count):
                 if nodes_count == len(json_graph):
                     st.session_state.graph_dict = json_graph
                 else:
-                    st.warning(f"El json debe tener {nodes_count} nodos")
+                    st.warning(f"El grafo cargado tiene {len(json_graph)} nodos.")
 
         if is_edge_already_created:
             col_warning, _ = st.columns([2, 1])
@@ -428,16 +486,15 @@ def main():
             # Encontrar camino mas corto
             dijkstra = AlgorithmDijkstra(st.session_state.graph_dict)
             all_short_paths, min_distance = dijkstra.find_short_path(start_node, end_node)
-
+            show_min_path(min_distance, all_short_paths, start_node, end_node)
+            
             steps, graph = st.columns({1, 3})
             with steps:
                 st.session_state.dijkstra_steps = dijkstra.steps
-                steps_details_dijkstra()
+                steps_details_dijkstra(end_node)
             with graph:
                 show_graph(all_short_paths, is_dijkstra_executed, start_node, end_node)
 
-            # Ruta del camino corto y detalles para encontar el camino
-            # show_min_path(min_distance, all_short_paths, start_node, end_node)
         else:
             show_graph(all_short_paths, is_dijkstra_executed, start_node, end_node)
 
