@@ -71,30 +71,50 @@ class AlgorithmDijkstra:
             
             step_updates = []
             for neighbor, weight in self.graph[current_node].items():
-                if neighbor not in labeled_nodes:
-                    new_distance = distances[current_node] + weight
-                    new_hop = hop_depth[current_node] + 1
-                    if new_distance < distances[neighbor]:
-                        distances[neighbor] = new_distance
-                        hop_depth[neighbor] = new_hop
-                        predecessors[neighbor] = [current_node]
-                        pred_hop_map[neighbor] = {current_node: new_hop}
-                        step_updates.append({
-                            "nodo": neighbor,
-                            "desde": current_node,
-                            "distancia": new_distance,
-                            "iteracion_salto": new_hop
-                        })
-                    elif new_distance == distances[neighbor]:
-                        predecessors[neighbor].append(current_node)
-                        pred_hop_map[neighbor][current_node] = new_hop
-                        step_updates.append({
-                            "nodo": neighbor,
-                            "desde": current_node,
-                            "distancia": new_distance,
-                            "iteracion_salto": new_hop,
-                            "empate": True
-                        })
+                new_distance = distances[current_node] + weight
+                new_hop = hop_depth[current_node] + 1
+                
+                if neighbor in labeled_nodes:
+                    # Vecino ya etiquetado, mostrar que se evaluó pero no se actualizó
+                    step_updates.append({
+                        "nodo": neighbor,
+                        "desde": current_node,
+                        "distancia": new_distance,
+                        "iteracion_salto": new_hop,
+                        "ya_etiquetado": True,
+                        "distancia_actual": distances[neighbor]
+                    })
+                elif new_distance < distances[neighbor]:
+                    distances[neighbor] = new_distance
+                    hop_depth[neighbor] = new_hop
+                    predecessors[neighbor] = [current_node]
+                    pred_hop_map[neighbor] = {current_node: new_hop}
+                    step_updates.append({
+                        "nodo": neighbor,
+                        "desde": current_node,
+                        "distancia": new_distance,
+                        "iteracion_salto": new_hop
+                    })
+                elif new_distance == distances[neighbor]:
+                    predecessors[neighbor].append(current_node)
+                    pred_hop_map[neighbor][current_node] = new_hop
+                    step_updates.append({
+                        "nodo": neighbor,
+                        "desde": current_node,
+                        "distancia": new_distance,
+                        "iteracion_salto": new_hop,
+                        "empate": True
+                    })
+                else:
+                    # Nueva distancia es peor que la actual
+                    step_updates.append({
+                        "nodo": neighbor,
+                        "desde": current_node,
+                        "distancia": new_distance,
+                        "iteracion_salto": new_hop,
+                        "no_mejora": True,
+                        "distancia_actual": distances[neighbor]
+                    })
 
             selected_distance = distances[current_node]
             selected_hop = hop_depth[current_node]
@@ -331,7 +351,9 @@ def steps_details_dijkstra(end_node=None):
         if step['actualizaciones']:
             for upd in step['actualizaciones']:
                 etiqueta = f"[{upd['distancia']}, {upd['desde']}]`({upd['iteracion_salto']})`"
-                if upd.get('empate'):
+                if upd.get('ya_etiquetado') or upd.get('no_mejora'):
+                    st.write(f"- Ya etiquetado: {upd['nodo']} {etiqueta} (actual: {upd['distancia_actual']})")
+                elif upd.get('empate'):
                     st.write(f"- Empate: {upd['nodo']} {etiqueta}")
                 else:
                     st.write(f"- {upd['nodo']} {etiqueta}")
